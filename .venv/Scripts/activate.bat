@@ -8,7 +8,7 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-set "VIRTUAL_ENV=E:\Engenharia de Software\5° Período\Papiii\Banco de Dados Não Relacionais (Fabricio Dias)\P1\Trabalho\fastapi-chat-atlas-min\.venv"
+set "VIRTUAL_ENV=E:\Engenharia de Software\5° Período\Papiii\Banco de Dados Não Relacionais (Fabricio Dias)\P1\Trabalho\fastapi-chat-atlas\.venv"
 
 if not defined PROMPT set PROMPT=$P$G
 
