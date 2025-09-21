@@ -12,3 +12,8 @@ __pycache__/
 /data/
 *.log
 .env
+
+
+git remote add origin git@github.com:ClaraMoledo/BDNR_fastapi_chat-.git
+git branch -M main
+git push -u origin main
