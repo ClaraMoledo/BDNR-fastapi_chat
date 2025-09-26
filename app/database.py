@@ -1,26 +1,20 @@
-from typing import Optional
+"""database.py — cria e expõe a conexão com MongoDB e helpers simples."""
+
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from typing import Optional
 from .config import MONGO_URL, MONGO_DB
 
-# Cliente global reutilizado pela aplicação
 _client: Optional[AsyncIOMotorClient] = None
 
-
-def get_client() -> AsyncIOMotorClient:
+def get_db() -> AsyncIOMotorDatabase:
     """
-    Retorna um cliente MongoDB (singleton).
-    Cria a conexão caso ainda não exista.
+    Retorna o objeto AsyncIOMotorDatabase.
+    Cria a conexão lazily na primeira chamada.
+    Lança RuntimeError se MONGO_URL não estiver setada.
     """
     global _client
     if _client is None:
         if not MONGO_URL:
-            raise RuntimeError("❌ Defina MONGO_URL no arquivo .env")
+            raise RuntimeError("Defina MONGO_URL no .env (string do MongoDB Atlas).")
         _client = AsyncIOMotorClient(MONGO_URL)
-    return _client
-
-
-def get_db() -> AsyncIOMotorDatabase:
-    """
-    Retorna a instância do banco de dados configurado (MONGO_DB).
-    """
-    return get_client()[MONGO_DB]
+    return _client[MONGO_DB]

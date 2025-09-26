@@ -26,3 +26,4 @@ Docs: http://localhost:8000/docs
 - **Enviar (REST)**: `POST /rooms/{room}/messages`
 
 > Observação: a primeira conexão cria a coleção automaticamente.
+

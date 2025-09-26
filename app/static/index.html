@@ -7,199 +7,8 @@
 
     <title>Chat mínimo — FastAPI + MongoDB Atlas</title>
   <head>
-
-
-  <body>
-    <!-- HEADER -->
-    <header>
-      <strong>🔥 Chat FastAPI + MongoDB Atlas</strong>
-      <div>
-        <span id="status">🔴 desconectado</span>
-        <button id="themeBtn">🌙</button>
-      </div>
-    </header>
-
-
-
-    <!-- MAIN -->
-    <main>
-      <div class="row">
-        <input id="room" placeholder="sala (ex: geral)" />
-        <input id="username" placeholder="seu nome" />
-        <button id="connectBtn">Conectar</button>
-      </div>
-
-      <div id="messages"></div>
-
-      <form id="form" autocomplete="off">
-        <input id="input" type="text" placeholder="Digite sua mensagem..." />
-        <button>Enviar</button>
-      </form>
-    </main>
-
-    <!-- SCRIPT -->
-    <script>
-      const $room = document.getElementById('room');
-      const $username = document.getElementById('username');
-      const $messages = document.getElementById('messages');
-      const $form = document.getElementById('form');
-      const $input = document.getElementById('input');
-      const $connectBtn = document.getElementById('connectBtn');
-      const $status = document.getElementById("status");
-      const $themeBtn = document.getElementById("themeBtn");
-
-      $room.value = localStorage.getItem('room') || 'geral';
-      $username.value = localStorage.getItem('username') || '';
-
-      let ws = null;
-      let nextCursor = null;
-      let unread = 0;
-      let windowFocused = true;
-      let typingTimeout;
-
-      const $typing = document.createElement("div");
-      $typing.id = "typing";
-      $messages.after($typing);
-
-      // ---- Funções utilitárias ----
-      function setStatus(connected) {
-        $status.textContent = connected ? "🟢 conectado" : "🔴 desconectado";
-      }
-
-      function appendMessage(item) {
-        const div = document.createElement("div");
-        div.className = "msg";
-        div.classList.add(item.username === $username.value ? "self" : "other");
-        const when = new Date(item.created_at).toLocaleTimeString();
-        div.innerHTML = `<div class="meta">[${when}] <strong>${item.username}</strong></div><div>${item.content}</div>`;
-        $messages.appendChild(div);
-        div.scrollIntoView({ behavior: "smooth", block: "end" });
-
-        if (!windowFocused) {
-          unread++;
-          document.title = `(${unread}) Nova mensagem`;
-        }
-      }
-
-      function appendHistory(items) {
-        $messages.innerHTML = "";
-        items.forEach(appendMessage);
-        if (items.length) {
-          nextCursor = items[0]._id;
-        }
-      }
-
-      // ---- Conexão ----
-      function connect() {
-        const room = ($room.value || 'geral').trim();
-        const username = ($username.value || 'anon').trim();
-        if (!room) return alert('Informe a sala');
-        if (!username) return alert('Informe o nome');
-
-        localStorage.setItem('room', room);
-        localStorage.setItem('username', username);
-
-        const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
-        const url = `${wsProto}://${location.host}/ws/${encodeURIComponent(room)}`;
-        ws = new WebSocket(url);
-
-        ws.onopen = () => setStatus(true);
-        ws.onclose = () => setStatus(false);
-        ws.onerror = (e) => {
-          console.error("WS erro", e);
-          setStatus(false);
-        };
-
-        ws.onmessage = (evt) => {
-          const data = JSON.parse(evt.data);
-          if (data.type === "history") {
-            appendHistory(data.items || []);
-          } else if (data.type === "message") {
-            appendMessage(data.item);
-            $typing.textContent = "";
-          } else if (data.type === "typing") {
-            if (data.username !== $username.value) {
-              $typing.textContent = `${data.username} está digitando...`;
-              clearTimeout(typingTimeout);
-              typingTimeout = setTimeout(() => ($typing.textContent = ""), 2000);
-            }
-          }
-        };
-      }
-
-      // ---- Eventos ----
-      $connectBtn.addEventListener('click', () => {
-        if (ws) ws.close();
-        connect();
-      });
-
-      $form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const content = $input.value.trim();
-        if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
-        ws.send(JSON.stringify({ content, username: $username.value }));
-        $input.value = '';
-      });
-
-      // Enter envia, Shift+Enter quebra linha
-      $input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          $form.requestSubmit();
-        }
-      });
-
-      // Indicador de digitação
-      $input.addEventListener("input", () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ typing: true, username: $username.value }));
-        }
-      });
-
-      // Scroll infinito
-      $messages.addEventListener("scroll", async () => {
-        if ($messages.scrollTop === 0 && nextCursor) {
-          const res = await fetch(`/rooms/${encodeURIComponent($room.value)}/messages?before_id=${nextCursor}&limit=20`);
-          const data = await res.json();
-          if (data.items.length) {
-            const oldHeight = $messages.scrollHeight;
-            data.items.forEach(item => {
-              const div = document.createElement("div");
-              div.className = "msg other";
-              const when = new Date(item.created_at).toLocaleTimeString();
-              div.innerHTML = `<div class="meta">[${when}] <strong>${item.username}</strong></div><div>${item.content}</div>`;
-              $messages.insertBefore(div, $messages.firstChild);
-            });
-            nextCursor = data.next_cursor;
-            $messages.scrollTop = $messages.scrollHeight - oldHeight;
-          }
-        }
-      });
-
-      // Controle de foco (notificações)
-      window.addEventListener("focus", () => {
-        windowFocused = true;
-        unread = 0;
-        document.title = "Chat mínimo — FastAPI + MongoDB Atlas";
-      });
-      window.addEventListener("blur", () => {
-        windowFocused = false;
-      });
-
-      // Dark/Light mode
-      $themeBtn.addEventListener("click", () => {
-        document.body.classList.toggle("dark");
-        $themeBtn.textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
-      });
-
-      // Conectar automaticamente se já houver valores
-      if ($room.value && $username.value) {
-        connect();
-      }
-    </script>
-
-
-<!-- STYLES -->
+  
+  <!-- STYLES -->
     <style>
      /* Reset */
       * {
@@ -389,6 +198,195 @@
       }
 
     </style>
+
+  <body>
+    <!-- HEADER -->
+    <header>
+      <strong>🔥 Chat FastAPI + MongoDB Atlas</strong>
+      <div>
+        <span id="status">🔴 desconectado</span>
+        <button id="themeBtn">🌙</button>
+      </div>
+    </header>
+
+
+
+    <!-- MAIN -->
+    <main>
+      <div class="row">
+        <input id="room" placeholder="sala (ex: geral)" />
+        <input id="username" placeholder="seu nome" />
+        <button id="connectBtn">Conectar</button>
+      </div>
+
+      <div id="messages"></div>
+
+      <form id="form" autocomplete="off">
+        <input id="input" type="text" placeholder="Digite sua mensagem..." />
+        <button>Enviar</button>
+      </form>
+    </main>
+
+    <!-- SCRIPT -->
+    <script>
+      const $room = document.getElementById('room');
+      const $username = document.getElementById('username');
+      const $messages = document.getElementById('messages');
+      const $form = document.getElementById('form');
+      const $input = document.getElementById('input');
+      const $connectBtn = document.getElementById('connectBtn');
+      const $status = document.getElementById("status");
+      const $themeBtn = document.getElementById("themeBtn");
+
+      $room.value = localStorage.getItem('room') || 'geral';
+      $username.value = localStorage.getItem('username') || '';
+
+      let ws = null;
+      let nextCursor = null;
+      let unread = 0;
+      let windowFocused = true;
+      let typingTimeout;
+
+      const $typing = document.createElement("div");
+      $typing.id = "typing";
+      $messages.after($typing);
+
+      // ---- Funções utilitárias ----
+      function setStatus(connected) {
+        $status.textContent = connected ? "🟢 conectado" : "🔴 desconectado";
+      }
+
+      function appendMessage(item) {
+        const div = document.createElement("div");
+        div.className = "msg";
+        div.classList.add(item.username === $username.value ? "self" : "other");
+        const when = new Date(item.created_at).toLocaleTimeString();
+        div.innerHTML = `<div class="meta">[${when}] <strong>${item.username}</strong></div><div>${item.content}</div>`;
+        $messages.appendChild(div);
+        div.scrollIntoView({ behavior: "smooth", block: "end" });
+
+        if (!windowFocused) {
+          unread++;
+          document.title = `(${unread}) Nova mensagem`;
+        }
+      }
+
+      function appendHistory(items) {
+        $messages.innerHTML = "";
+        items.forEach(appendMessage);
+        if (items.length) {
+          nextCursor = items[0]._id;
+        }
+      }
+
+      // ---- Conexão ----
+      function connect() {
+        const room = ($room.value || 'geral').trim();
+        const username = ($username.value || 'anon').trim();
+        if (!room) return alert('Informe a sala');
+        if (!username) return alert('Informe o nome');
+
+        localStorage.setItem('room', room);
+        localStorage.setItem('username', username);
+
+        const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
+        const url = `${wsProto}://${location.host}/ws/${encodeURIComponent(room)}`;
+        ws = new WebSocket(url);
+
+        ws.onopen = () => setStatus(true);
+        ws.onclose = () => setStatus(false);
+        ws.onerror = (e) => {
+          console.error("WS erro", e);
+          setStatus(false);
+        };
+
+        ws.onmessage = (evt) => {
+          const data = JSON.parse(evt.data);
+          if (data.type === "history") {
+            appendHistory(data.items || []);
+          } else if (data.type === "message") {
+            appendMessage(data.item);
+            $typing.textContent = "";
+          } else if (data.type === "typing") {
+            if (data.username !== $username.value) {
+              $typing.textContent = `${data.username} está digitando...`;
+              clearTimeout(typingTimeout);
+              typingTimeout = setTimeout(() => ($typing.textContent = ""), 2000);
+            }
+          }
+        };
+      }
+
+      // ---- Eventos ----
+      $connectBtn.addEventListener('click', () => {
+        if (ws) ws.close();
+        connect();
+      });
+
+      $form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const content = $input.value.trim();
+        if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ content, username: $username.value }));
+        $input.value = '';
+      });
+
+      // Enter envia, Shift+Enter quebra linha
+      $input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          $form.requestSubmit();
+        }
+      });
+
+      // Indicador de digitação
+      $input.addEventListener("input", () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ typing: true, username: $username.value }));
+        }
+      });
+
+      // Scroll infinito
+      $messages.addEventListener("scroll", async () => {
+        if ($messages.scrollTop === 0 && nextCursor) {
+          const res = await fetch(`/rooms/${encodeURIComponent($room.value)}/messages?before_id=${nextCursor}&limit=20`);
+          const data = await res.json();
+          if (data.items.length) {
+            const oldHeight = $messages.scrollHeight;
+            data.items.forEach(item => {
+              const div = document.createElement("div");
+              div.className = "msg other";
+              const when = new Date(item.created_at).toLocaleTimeString();
+              div.innerHTML = `<div class="meta">[${when}] <strong>${item.username}</strong></div><div>${item.content}</div>`;
+              $messages.insertBefore(div, $messages.firstChild);
+            });
+            nextCursor = data.next_cursor;
+            $messages.scrollTop = $messages.scrollHeight - oldHeight;
+          }
+        }
+      });
+
+      // Controle de foco (notificações)
+      window.addEventListener("focus", () => {
+        windowFocused = true;
+        unread = 0;
+        document.title = "Chat mínimo — FastAPI + MongoDB Atlas";
+      });
+      window.addEventListener("blur", () => {
+        windowFocused = false;
+      });
+
+      // Dark/Light mode
+      $themeBtn.addEventListener("click", () => {
+        document.body.classList.toggle("dark");
+        $themeBtn.textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
+      });
+
+      // Conectar automaticamente se já houver valores
+      if ($room.value && $username.value) {
+        connect();
+      }
+    </script>
 
   </body>
 </html>
