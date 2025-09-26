@@ -1,16 +1,15 @@
-"""database.py — cria e expõe a conexão com MongoDB e helpers simples."""
+"""
+Conexão com MongoDB e funções auxiliares.
+"""
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from typing import Optional
+from motor.motor_asyncio import AsyncIOMotorClient
 from .config import MONGO_URL, MONGO_DB
 
-_client: Optional[AsyncIOMotorClient] = None
+_client = None
 
-def get_db() -> AsyncIOMotorDatabase:
+def db():
     """
-    Retorna o objeto AsyncIOMotorDatabase.
-    Cria a conexão lazily na primeira chamada.
-    Lança RuntimeError se MONGO_URL não estiver setada.
+    Retorna a instância do banco de dados MongoDB.
     """
     global _client
     if _client is None:
